@@ -2,7 +2,7 @@
 
 A lightweight C raymarcher that renders three geometric shapes (cylinder, sphere, and box) with realistic lighting, shadows, and reflections. Perfect for generating artistic wallpapers or learning about raymarching techniques.
 
-![Example Output](output_example.png)
+![Example Output](out.png)
 
 ## Features
 
