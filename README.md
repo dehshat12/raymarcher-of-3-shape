@@ -46,12 +46,12 @@ cd raymarcher-of-3-shape
 
 2. Compile the code:
 ```bash
-gcc -o raymarcher raymarcher.c -lm
+gcc -o raymarcher main.c -lm
 ```
 
 Or with optimizations for faster rendering:
 ```bash
-gcc -O3 -o raymarcher raymarcher.c -lm
+gcc -O3 -o raymarcher main.c -lm
 ```
 
 ## Usage
