@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raymarcher - 3 Shapes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        #container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+        }
+        canvas {
+            border: 2px solid #333;
+            box-shadow: 0 0 30px rgba(0, 255, 200, 0.3);
+            max-width: 100%;
+            height: auto;
+        }
+        #controls {
+            background: rgba(20, 20, 30, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            max-width: 800px;
+            width: 100%;
+        }
+        .control-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #0ff;
+            font-size: 14px;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .value-display {
+            color: #fff;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        h2 {
+            color: #0ff;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        button {
+            background: #0ff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #fff;
+            transform: scale(1.05);
+        }
+        #download {
+            width: 100%;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas" width="960" height="540"></canvas>
+        
+        <div id="controls">
+            <h2>⚙️ Raymarcher Controls</h2>
+            
+            <div class="control-group">
+                <label>Camera Position Y (Height): <span class="value-display" id="camY-val">1.2</span></label>
+                <input type="range" id="camY" min="0" max="3" step="0.1" value="1.2">
+            </div>
+            
+            <div class="control-group">
+                <label>Camera Position Z (Distance): <span class="value-display" id="camZ-val">5</span></label>
+                <input type="range" id="camZ" min="2" max="10" step="0.5" value="5">
+            </div>
+            
+            <div class="control-group">
+                <label>Zoom: <span class="value-display" id="zoom-val">1.6</span></label>
+                <input type="range" id="zoom" min="0.5" max="3" step="0.1" value="1.6">
+            </div>
+            
+            <div class="control-group">
+                <label>Sphere Size: <span class="value-display" id="sphereSize-val">0.9</span></label>
+                <input type="range" id="sphereSize" min="0.3" max="2" step="0.1" value="0.9">
+            </div>
+            
+            <div class="control-group">
+                <label>Cylinder Radius: <span class="value-display" id="cylRadius-val">0.7</span></label>
+                <input type="range" id="cylRadius" min="0.3" max="2" step="0.1" value="0.7">
+            </div>
+            
+            <div class="control-group">
+                <label>Box Size: <span class="value-display" id="boxSize-val">0.85</span></label>
+                <input type="range" id="boxSize" min="0.3" max="2" step="0.05" value="0.85">
+            </div>
+            
+            <div class="control-group">
+                <label>Light X: <span class="value-display" id="lightX-val">0.5</span></label>
+                <input type="range" id="lightX" min="-2" max="2" step="0.1" value="0.5">
+            </div>
+            
+            <div class="control-group">
+                <label>Light Y: <span class="value-display" id="lightY-val">1</span></label>
+                <input type="range" id="lightY" min="0" max="3" step="0.1" value="1">
+            </div>
+            
+            <div class="control-group">
+                <label>Ambient Light: <span class="value-display" id="ambient-val">0.03</span></label>
+                <input type="range" id="ambient" min="0" max="0.3" step="0.01" value="0.03">
+            </div>
+            
+            <button id="download">💾 Download Image</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Scene parameters
+        let params = {
+            camY: 1.2,
+            camZ: 5,
+            zoom: 1.6,
+            sphereSize: 0.9,
+            cylRadius: 0.7,
+            boxSize: 0.85,
+            lightX: 0.5,
+            lightY: 1,
+            ambient: 0.03
+        };
+
+        // Vector operations
+        const add = (a, b) => ({x: a.x + b.x, y: a.y + b.y, z: a.z + b.z});
+        const sub = (a, b) => ({x: a.x - b.x, y: a.y - b.y, z: a.z - b.z});
+        const mul = (a, s) => ({x: a.x * s, y: a.y * s, z: a.z * s});
+        const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+        const length = (a) => Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+        const norm = (a) => { const l = length(a); return mul(a, 1.0 / l); };
+
+        // SDF functions
+        function sphereSDF(p, r) {
+            return length(p) - r;
+        }
+
+        function boxSDF(p, b) {
+            const q = {
+                x: Math.abs(p.x) - b.x,
+                y: Math.abs(p.y) - b.y,
+                z: Math.abs(p.z) - b.z
+            };
+            const dx = Math.max(q.x, 0);
+            const dy = Math.max(q.y, 0);
+            const dz = Math.max(q.z, 0);
+            return Math.sqrt(dx*dx + dy*dy + dz*dz) + Math.min(Math.max(q.x, Math.max(q.y, q.z)), 0);
+        }
+
+        function cylinderSDF(p, r, h) {
+            const dx = Math.sqrt(p.x*p.x + p.z*p.z) - r;
+            const dy = Math.abs(p.y) - h;
+            const outside = Math.sqrt(Math.max(dx,0)*Math.max(dx,0) + Math.max(dy,0)*Math.max(dy,0));
+            const inside = Math.min(Math.max(dx, dy), 0);
+            return outside + inside;
+        }
+
+        function planeSDF(p) {
+            return p.y + 1.0;
+        }
+
+        function sceneSDF(p) {
+            const p1 = sub(p, {x: -2.0, y: 0.5, z: 1.0});
+            const cyl = cylinderSDF(p1, params.cylRadius, 1.5);
+            
+            const p2 = sub(p, {x: 0.3, y: -0.2, z: -1.5});
+            const sph = sphereSDF(p2, params.sphereSize);
+            
+            const p3 = sub(p, {x: 2.2, y: -0.2, z: 0.5});
+            const box = boxSDF(p3, {x: params.boxSize, y: params.boxSize, z: params.boxSize});
+            
+            const plane = planeSDF(p);
+            
+            let minDist = cyl;
+            let objID = 1;
+            
+            if (sph < minDist) { minDist = sph; objID = 2; }
+            if (box < minDist) { minDist = box; objID = 3; }
+            if (plane < minDist) { minDist = plane; objID = 4; }
+            
+            return { dist: minDist, objID: objID };
+        }
+
+        function getNormal(p) {
+            const eps = 0.001;
+            const d = sceneSDF(p).dist;
+            return norm({
+                x: sceneSDF({x: p.x + eps, y: p.y, z: p.z}).dist - d,
+                y: sceneSDF({x: p.x, y: p.y + eps, z: p.z}).dist - d,
+                z: sceneSDF({x: p.x, y: p.y, z: p.z + eps}).dist - d
+            });
+        }
+
+        function raymarch(ro, rd) {
+            let dist = 0;
+            for (let i = 0; i < 100; i++) {
+                const p = add(ro, mul(rd, dist));
+                const result = sceneSDF(p);
+                if (result.dist < 0.001) return { t: dist, objID: result.objID };
+                dist += result.dist;
+                if (dist > 100) break;
+            }
+            return { t: -1, objID: 0 };
+        }
+
+        function softShadow(ro, rd, mint, maxt, k) {
+            let res = 1.0;
+            let t = mint;
+            for (let i = 0; i < 32; i++) {
+                const p = add(ro, mul(rd, t));
+                const h = sceneSDF(p).dist;
+                if (h < 0.001) return 0.0;
+                res = Math.min(res, k * h / t);
+                t += h;
+                if (t >= maxt) break;
+            }
+            return res;
+        }
+
+        function reflect(I, N) {
+            return sub(I, mul(N, 2.0 * dot(N, I)));
+        }
+
+        function getColor(p, objID, normal, lightDir, viewDir, reflectColor, shadow) {
+            let col = {r: 0, g: 0, b: 0};
+            let shininess = 0;
+            let reflectivity = 0;
+            
+            if (objID === 1) {
+                col = {r: 0.2, g: 0.6, b: 0.3};
+                shininess = 0.6;
+                reflectivity = 0.4;
+            } else if (objID === 2) {
+                col = {r: 0.7, g: 0.3, b: 0.3};
+                shininess = 0.8;
+                reflectivity = 0.5;
+            } else if (objID === 3) {
+                col = {r: 0.3, g: 0.3, b: 0.7};
+                shininess = 0.7;
+                reflectivity = 0.45;
+            } else if (objID === 4) {
+                const scale = 1.0;
+                const cx = Math.floor(p.x / scale);
+                const cz = Math.floor(p.z / scale);
+                if ((cx + cz) % 2 === 0) {
+                    col = {r: 0.8, g: 0.8, b: 0.8};
+                } else {
+                    col = {r: 0.5, g: 0.2, b: 0.2};
+                }
+                shininess = 0.9;
+                reflectivity = 0.3;
+            }
+            
+            const ambient = params.ambient;
+            const diff = Math.max(dot(normal, lightDir), 0) * shadow;
+            
+            const halfDir = norm(add(lightDir, mul(viewDir, -1)));
+            const spec = Math.pow(Math.max(dot(normal, halfDir), 0), 32) * shininess * shadow;
+            
+            col.r = col.r * (ambient + diff * 0.6) + spec * 0.8 + reflectColor.x * reflectivity;
+            col.g = col.g * (ambient + diff * 0.6) + spec * 0.8 + reflectColor.y * reflectivity;
+            col.b = col.b * (ambient + diff * 0.6) + spec * 0.8 + reflectColor.z * reflectivity;
+            
+            col.r = Math.min(col.r, 1.0);
+            col.g = Math.min(col.g, 1.0);
+            col.b = Math.min(col.b, 1.0);
+            
+            return col;
+        }
+
+        function render() {
+            const imageData = ctx.createImageData(width, height);
+            const data = imageData.data;
+            
+            const ro = {x: 0, y: params.camY, z: params.camZ};
+            const lightDir = norm({x: params.lightX, y: params.lightY, z: 0.5});
+            const fov = 60;
+            const aspect = width / height;
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const px = (2 * ((x + 0.5) / width) - 1) * Math.tan(fov / 2 * Math.PI / 180) * aspect * params.zoom;
+                    const py = (1 - 2 * ((y + 0.5) / height)) * Math.tan(fov / 2 * Math.PI / 180) * params.zoom;
+                    const rd = norm({x: px, y: py, z: -1});
+                    
+                    const result = raymarch(ro, rd);
+                    let col = {r: 0, g: 0, b: 0};
+                    
+                    if (result.t > 0) {
+                        const hitPoint = add(ro, mul(rd, result.t));
+                        const normal = getNormal(hitPoint);
+                        const viewDir = rd;
+                        
+                        const shadowOrigin = add(hitPoint, mul(normal, 0.002));
+                        const shadow = softShadow(shadowOrigin, lightDir, 0.02, 10, 8);
+                        
+                        const reflectDir = reflect(rd, normal);
+                        const reflectResult = raymarch(add(hitPoint, mul(normal, 0.002)), reflectDir);
+                        
+                        let reflectColor = {x: 0.02, y: 0.02, z: 0.03};
+                        if (reflectResult.t > 0) {
+                            const reflectHitPoint = add(add(hitPoint, mul(normal, 0.002)), mul(reflectDir, reflectResult.t));
+                            const reflectNormal = getNormal(reflectHitPoint);
+                            const reflectShadowOrigin = add(reflectHitPoint, mul(reflectNormal, 0.002));
+                            const reflectShadow = softShadow(reflectShadowOrigin, lightDir, 0.02, 10, 8);
+                            const reflectDiff = Math.max(dot(reflectNormal, lightDir), 0) * reflectShadow * 0.6 + 0.03;
+                            
+                            if (reflectResult.objID === 1) {
+                                reflectColor = {x: 0.2 * reflectDiff, y: 0.6 * reflectDiff, z: 0.3 * reflectDiff};
+                            } else if (reflectResult.objID === 2) {
+                                reflectColor = {x: 0.7 * reflectDiff, y: 0.3 * reflectDiff, z: 0.3 * reflectDiff};
+                            } else if (reflectResult.objID === 3) {
+                                reflectColor = {x: 0.3 * reflectDiff, y: 0.3 * reflectDiff, z: 0.7 * reflectDiff};
+                            } else if (reflectResult.objID === 4) {
+                                const scale = 1.0;
+                                const cx = Math.floor(reflectHitPoint.x / scale);
+                                const cz = Math.floor(reflectHitPoint.z / scale);
+                                if ((cx + cz) % 2 === 0) {
+                                    reflectColor = {x: 0.8 * reflectDiff, y: 0.8 * reflectDiff, z: 0.8 * reflectDiff};
+                                } else {
+                                    reflectColor = {x: 0.5 * reflectDiff, y: 0.2 * reflectDiff, z: 0.2 * reflectDiff};
+                                }
+                            }
+                        }
+                        
+                        col = getColor(hitPoint, result.objID, normal, lightDir, viewDir, reflectColor, shadow);
+                    }
+                    
+                    const idx = (y * width + x) * 4;
+                    data[idx] = col.r * 255;
+                    data[idx + 1] = col.g * 255;
+                    data[idx + 2] = col.b * 255;
+                    data[idx + 3] = 255;
+                }
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        // Set up controls
+        const controls = ['camY', 'camZ', 'zoom', 'sphereSize', 'cylRadius', 'boxSize', 'lightX', 'lightY', 'ambient'];
+        
+        controls.forEach(control => {
+            const input = document.getElementById(control);
+            const display = document.getElementById(control + '-val');
+            
+            input.addEventListener('input', (e) => {
+                params[control] = parseFloat(e.target.value);
+                display.textContent = e.target.value;
+                render();
+            });
+        });
+
+        // Download button
+        document.getElementById('download').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'raymarcher-output.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+
+        // Initial render
+        render();
+    </script>
+</body>
+</html>
